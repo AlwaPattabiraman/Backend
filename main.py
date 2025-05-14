@@ -25,7 +25,7 @@ from whoosh.qparser import QueryParser
 from whoosh.analysis import StemmingAnalyzer
 import os, shutil, re
 app = FastAPI()
-
+api_key = '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'
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Or specify your frontend URL, e.g., "http://localhost:4200"
@@ -566,6 +566,64 @@ class SummaryRequest(BaseModel):
     summary1: str
     summary2: str
 
+# Function to compare summaries
+def compare_summaries(summary1: str, summary2: str):
+    """Compare two summaries and return two separate JSON objects."""
+
+    prompt = f"""
+    Compare the following two summaries and return two separate JSON objects.
+
+    **Summary 1:** {summary1}
+    **Summary 2:** {summary2}
+
+    **JSON 1 Format:**
+    {{
+        "common_theme": "Common theme or idea",
+        "common_fact": "Common fact from both summaries"
+    }}
+
+    **JSON 2 Format:**
+    {{
+        "summary_1_unique": "Unique fact from summary 1",
+        "summary_2_unique": "Unique fact from summary 2"
+    }}
+
+    Provide only the JSON output.
+    """
+
+    try:
+        chat = ChatOpenAI(
+            openai_api_key=api_key,
+            model='gpt-4o'
+        )
+
+        chat_messages = [
+            SystemMessage(content="You are a helpful assistant."),  # Role definition
+            HumanMessage(content=prompt),                 # Current query with context
+        ]
+        response = chat(chat_messages)
+
+        # Extract JSON response from GPT output
+        print(response,32)
+        output_text = response.content.strip()
+        # json_objects = output_text.split("\n\n")
+        json_objects = re.findall(r'```json\n(.*?)\n```', output_text, re.DOTALL)
+        print(output_text,281)
+        # json_objects = output_text.strip().split("\n\n")  # Split into two separate JSONs
+
+        json1 = json.loads(json_objects[0])
+        json2 = json.loads(json_objects[1])
+
+        return json1, json2
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# FastAPI route to compare summaries
+@app.post("/compare-summaries/")
+async def compare_summaries_api(request: SummaryRequest):
+    json1, json2 = compare_summaries(request.summary1, request.summary2)
+    return {"commonalities": json1, "differences": json2}
 
 @app.get("/health")
 async def health_check():
